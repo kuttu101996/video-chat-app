@@ -1,15 +1,95 @@
+<!-- index.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Chat</title>
+  <title>Video Chat</title>
+  <style>
+    video {
+      width: 100%;
+      height: auto;
+    }
+  </style>
 </head>
 <body>
-    <div>
-        <video id="localVideo" autoplay></video>
-        <button id="endBtn">End Call</button>
-    </div>
+  <h1>Video Chat</h1>
+  <video id="localVideo" autoplay></video>
+  <div id="remoteVideos"></div>
+  <button id="endCallButton" disabled>End Call</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.1/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let localStream;
+    const remoteStreams = {};
+
+    // Get access to the user's camera and microphone
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        const localVideo = document.getElementById('localVideo');
+        localStream = stream;
+        localVideo.srcObject = stream;
+
+        // Emit a 'user-connected' event and pass the stream to the server
+        socket.emit('user-connected', stream);
+
+        // When receiving a 'user-connected' event from the server, create a new video element for the remote user
+        socket.on('user-connected', ({ userId, stream }) => {
+          const remoteVideo = document.createElement('video');
+          remoteVideo.srcObject = stream;
+          remoteVideo.autoplay = true;
+          remoteVideo.setAttribute('data-socket', userId);
+          document.getElementById('remoteVideos').appendChild(remoteVideo);
+          remoteStreams[userId] = stream;
+        });
+
+        // When receiving a 'user-disconnected' event from the server, remove the corresponding video element
+        socket.on('user-disconnected', userId => {
+          const videoElement = document.querySelector(`video[data-socket="${userId}"]`);
+          if (videoElement) {
+            videoElement.remove();
+            delete remoteStreams[userId];
+          }
+        });
+      });
+
+    // Add event listener for the "End Call" button
+    const endCallButton = document.getElementById('endCallButton');
+    endCallButton.addEventListener('click', () => {
+      // Stop the local stream
+      localStream.getTracks().forEach(track => track.stop());
+
+      // Emit a 'call-ended' event to the server
+      socket.emit('call-ended');
+
+      // Remove all remote video elements
+      const remoteVideoContainer = document.getElementById('remoteVideos');
+      while (remoteVideoContainer.firstChild) {
+        remoteVideoContainer.firstChild.remove();
+      }
+
+      // Disable the "End Call" button
+      endCallButton.disabled = true;
+    });
+
+    // When receiving a 'call-ended' event from the server, handle the call end
+    socket.on('call-ended', () => {
+      // Stop the local stream
+      localStream.getTracks().forEach(track => track.stop());
+
+      // Remove all remote video elements
+      const remoteVideoContainer = document.getElementById('remoteVideos');
+      while (remoteVideoContainer.firstChild) {
+        remoteVideoContainer.firstChild.remove();
+      }
+
+      // Disable the "End Call" button
+      endCallButton.disabled = true;
+    });
+
+    // Enable the "End Call" button when the local stream starts playing
+    localVideo.addEventListener('playing', () => {
+      endCallButton.disabled = false;
+    });
+  </script>
 </body>
 </html>

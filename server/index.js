@@ -31,11 +31,9 @@ io.on('connection', socket=>{
 
     socket.on("negotiation", ({to, offer}) => {
         io.to(to).emit('negotiation', { from: socket.id, offer})
-
     })
 
     socket.on('Nego:done', ({ to, answer}) => {
         io.to(to).emit('nego:final', { from: socket.id, answer})
-        
     })
 })
